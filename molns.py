@@ -466,6 +466,33 @@ class MOLNSController(MOLNSbase):
         else:
             print "No instance running for this controller"
 
+    # joni8705 - Restarts the controller (based on stop_controller)
+    @classmethod
+    def restart_controller(cls, args, config):
+        """ Restart the head node of a MOLNs controller. """
+        logging.debug("MOLNSController.restart_controller(args={0})".format(args))
+        controller_obj = cls._get_controllerobj(args, config)
+        if controller_obj is None: return
+        # Check if any instances are assigned to this controller
+        instance_list = config.get_all_instances(controller_id=controller_obj.id)
+        # Check if they are running
+        if len(instance_list) > 0:
+            for i in instance_list:
+                if i.worker_group_id is None: # will match if not a worker
+                    status = controller_obj.get_instance_status(i)
+                    if status == controller_obj.STATUS_RUNNING:
+                        print "Restarting controller running at {0}".format(i.ip_address)
+                        controller_obj.restart_instance(i)
+                else:
+                    worker_name = config.get_object_by_id(i.worker_group_id, 'WorkerGroup').name
+                    worker_obj = cls._get_workerobj([worker_name], config)
+                    status = worker_obj.get_instance_status(i)
+                    if status == worker_obj.STATUS_RUNNING or status == worker_obj.STATUS_STOPPED:
+                        print "Terminating worker '{1}' running at {0}".format(i.ip_address, worker_name)
+                        worker_obj.terminate_instance(i)
+    
+        else:
+            print "No instance running for this controller"
 
     @classmethod
     def terminate_controller(cls, args, config):
@@ -1407,6 +1434,8 @@ COMMAND_LIST = [
                 function=MOLNSController.show_controller),
             Command('delete', {'name':None},
                 function=MOLNSController.delete_controller),
+	    	Command('restart', {'name':None},
+	        	function=MOLNSController.restart_controller), # joni8705 - add to controller list
             Command('export',{'name':None},
                 function=MOLNSController.controller_export),
             Command('import',{'filename.json':None},
